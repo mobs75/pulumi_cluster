@@ -1,0 +1,11 @@
+name: pulumi_cluster
+description: pulumi microk8s cluster with multipass
+runtime:
+  name: python
+  options:
+    toolchain: pip
+    virtualenv: venv
+config:
+  pulumi:tags:
+    value:
+      pulumi:template: python
