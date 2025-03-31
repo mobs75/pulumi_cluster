@@ -17,7 +17,7 @@ class ClusterStack(pulumi.ComponentResource):
 
         # Creare il master node solo se non esiste
         if not vm_exists("k8s-master"):
-            run_multipass("launch --name k8s-master --mem 4G --disk 10G 22.04")
+            run_multipass("launch --name k8s-master --mem 8G --disk 50G 22.04")
 
         # Configurare MicroK8s
         run_multipass("exec k8s-master -- sudo snap install microk8s --classic")
@@ -31,7 +31,7 @@ class ClusterStack(pulumi.ComponentResource):
         worker_nodes = ['k8s-node1', 'k8s-node2', 'k8s-node3']
         for node in worker_nodes:
             if not vm_exists(node):
-                run_multipass(f"launch --name {node} --mem 4G --disk 10G 22.04")
+                run_multipass(f"launch --name {node} --mem 8G --disk 50G 22.04")
 
             run_multipass(f"exec {node} -- sudo snap install microk8s --classic")
             run_multipass(f"exec {node} -- sudo usermod -a -G microk8s ubuntu")
