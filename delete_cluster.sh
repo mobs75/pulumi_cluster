@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "Eliminazione delle VM del cluster Kubernetes..."
+echo "🔥Eliminazione delle VM del cluster Kubernetes..."
 
 multipass delete --all 2>/dev/null
 multipass purge
