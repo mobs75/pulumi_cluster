@@ -60,23 +60,25 @@ class ClusterStack(pulumi.ComponentResource):
             else:
                 run_multipass(f"exec {node} -- {join_command}")
 
-        # Recuperare il ClusterIP del docker-registry dinamicamente e aggiungerlo a /etc/hosts
-        registry_ip = subprocess.check_output(
-            ["multipass", "exec", "k8s-master", "--",
-             "microk8s.kubectl", "get", "svc", "docker-registry",
-             "-n", "kube-system",
-             "-o", "jsonpath={.spec.clusterIP}"],
-            encoding='utf-8'
-        ).strip()
-
-        hosts_entry = f"{registry_ip} docker-registry.kube-system.svc.cluster.local"
+        # Configurare containerd su ogni nodo per risolvere il registry interno
+        # via NodePort (localhost:30500) invece del DNS cluster (non risolvibile dal kubelet)
+        hosts_toml = (
+            'server = "http://docker-registry.kube-system.svc.cluster.local:5000"\n'
+            '\n'
+            '[host."http://localhost:30500"]\n'
+            '  capabilities = ["pull", "resolve"]\n'
+        )
+        certs_d_path = (
+            "/var/snap/microk8s/current/args/certs.d"
+            "/docker-registry.kube-system.svc.cluster.local:5000/hosts.toml"
+        )
         for node in ["k8s-master"] + worker_nodes:
             subprocess.run(
                 ["multipass", "exec", node, "--",
-                 "sudo", "bash", "-c", f"echo '{hosts_entry}' >> /etc/hosts"],
+                 "sudo", "bash", "-c", f"printf '%s' '{hosts_toml}' > {certs_d_path}"],
                 check=True
             )
-            print(f"Added registry hosts entry on {node}: {hosts_entry}")
+            print(f"Configured containerd registry mirror on {node} -> localhost:30500")
 
         # Esportare informazioni del cluster
         self.masterNode = pulumi.Output.from_input('k8s-master')
