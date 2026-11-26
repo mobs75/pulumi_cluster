@@ -1,0 +1,30 @@
+# Operazioni Kubernetes: usano solo il kubeconfig esportato da Pulumi,
+# quindi non dipendono ne' dal VM provider ne' dalla distribuzione.
+version: '3'
+
+env:
+  KUBECONFIG: '{{.ROOT_DIR}}/.kube/{{.ENV}}.yaml'
+
+tasks:
+  _kubeconfig:
+    internal: true
+    status:
+      - test -s "{{.ROOT_DIR}}/.kube/{{.ENV}}.yaml"
+    cmds:
+      - task: :infra:kubeconfig
+        vars: { ENV: '{{.ENV}}' }
+
+  status:
+    desc: Stato del cluster Kubernetes (nodi, addon, pod non Running)
+    deps: [_kubeconfig]
+    cmds:
+      - kubectl get nodes -o wide
+      - kubectl get storageclass
+      - kubectl get svc -A --field-selector spec.type=LoadBalancer
+      - kubectl get pods -A --field-selector status.phase!=Running,status.phase!=Succeeded
+
+  kubectl:
+    desc: "kubectl sul cluster dell'ambiente. Es. task k8s:kubectl ENV=dev -- get pods -A"
+    deps: [_kubeconfig]
+    cmds:
+      - kubectl {{.CLI_ARGS}}

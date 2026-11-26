@@ -1,0 +1,37 @@
+# Operazioni sul VM provider corrente (Multipass).
+# Unico punto del Taskfile che conosce Multipass: i nomi delle VM arrivano
+# dagli output Pulumi dello stack, non sono duplicati qui.
+version: '3'
+
+vars:
+  VMS:
+    sh: pulumi stack output vmNames --json --stack {{.ENV}} 2>/dev/null | jq -r '.[]' | tr '\n' ' '
+
+tasks:
+  status:
+    desc: Stato delle VM dell'ambiente (ENV=dev|uat|prod)
+    cmds:
+      - |
+        if [ -z "{{.VMS}}" ]; then echo "Nessuna VM nello stack {{.ENV}}"; exit 0; fi
+        multipass info {{.VMS}} --format table 2>/dev/null || multipass list
+
+  shell:
+    desc: Shell su un nodo. Es. task vm:shell NODE=dev-master
+    requires: { vars: [NODE] }
+    interactive: true
+    cmds:
+      - multipass shell {{.NODE}}
+
+  logs:
+    desc: "Log di un nodo. NODE=<vm> LOG=kubelite|containerd|cloud-init (default kubelite)"
+    requires: { vars: [NODE] }
+    vars:
+      LOG: '{{.LOG | default "kubelite"}}'
+      LINES: '{{.LINES | default "200"}}'
+    cmds:
+      - |
+        case "{{.LOG}}" in
+          cloud-init) multipass exec {{.NODE}} -- sudo tail -n {{.LINES}} /var/log/cloud-init-output.log ;;
+          kubelite|containerd) multipass exec {{.NODE}} -- sudo journalctl -u snap.microk8s.daemon-{{.LOG}} -n {{.LINES}} --no-pager ;;
+          *) echo "LOG non valido: {{.LOG}}" >&2; exit 1 ;;
+        esac
