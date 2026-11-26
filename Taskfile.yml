@@ -1,0 +1,68 @@
+# Interfaccia operativa del progetto.
+#
+#   nix develop                 # toolchain riproducibile
+#   task setup                  # una tantum: backend Pulumi, dipendenze, stack
+#   task dev:preview            # oppure: task infra:preview ENV=dev
+#   task dev:up                 # oppure: task infra:up ENV=dev
+#   task cluster:status ENV=dev
+#
+# Task orchestra i comandi; la configurazione degli ambienti vive SOLO negli
+# stack Pulumi (Pulumi.<env>.yaml).
+version: '3'
+
+vars:
+  ENV: '{{.ENV | default "dev"}}'
+  ENVS: dev uat prod
+
+includes:
+  # Forma parametrica: task infra:<azione> ENV=<dev|uat|prod>
+  infra: ./taskfiles/Infra.yml
+  # Alias per ambiente, stesso Taskfile senza duplicazioni.
+  dev:
+    taskfile: ./taskfiles/Infra.yml
+    vars: { ENV: dev }
+  uat:
+    taskfile: ./taskfiles/Infra.yml
+    vars: { ENV: uat }
+  prod:
+    taskfile: ./taskfiles/Infra.yml
+    vars: { ENV: prod }
+  # Operazioni sul provider VM corrente (Multipass).
+  vm: ./taskfiles/Vm.yml
+  # Operazioni Kubernetes (indipendenti dal provider VM).
+  k8s: ./taskfiles/K8s.yml
+
+tasks:
+  default:
+    desc: Elenca le task disponibili
+    silent: true
+    cmds:
+      - task --list
+
+  setup:
+    desc: "Prepara il repository: backend Pulumi locale, dipendenze Python, stack dev/uat/prod"
+    cmds:
+      - pulumi whoami >/dev/null 2>&1 || pulumi login --local
+      - pulumi install
+      - for: { var: ENVS, split: ' ' }
+        cmd: pulumi stack ls --json | jq -e --arg s "{{.ITEM}}" 'any(.[]; .name == $s)' >/dev/null || pulumi stack init "{{.ITEM}}"
+
+  cluster:status:
+    desc: Stato completo del cluster (VM + Kubernetes). Es. task cluster:status ENV=uat
+    cmds:
+      - task: vm:status
+        vars: { ENV: '{{.ENV}}' }
+      - task: k8s:status
+        vars: { ENV: '{{.ENV}}' }
+
+  logs:
+    desc: "Log di un nodo. Es. task logs ENV=dev NODE=dev-node1 LOG=kubelite|containerd|cloud-init"
+    cmds:
+      - task: vm:logs
+        vars: { ENV: '{{.ENV}}', NODE: '{{.NODE}}', LOG: '{{.LOG}}', LINES: '{{.LINES}}' }
+
+  destroy:
+    desc: Distrugge l'ambiente indicato (default dev). Es. task destroy ENV=uat
+    cmds:
+      - task: infra:down
+        vars: { ENV: '{{.ENV}}', YES: '{{.YES}}' }

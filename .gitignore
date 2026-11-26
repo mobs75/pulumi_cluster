@@ -1,2 +1,11 @@
 *.pyc
+__pycache__/
 venv/
+.venv/
+# kubeconfig con credenziali: mai versionati
+.kube/
+*.kubeconfig
+# stato Pulumi locale e dati temporanei
+.pulumi/
+.direnv/
+result

@@ -1,0 +1,57 @@
+# Ciclo di vita dell'infrastruttura tramite Pulumi.
+# ENV seleziona lo stack Pulumi (dev|uat|prod): nessuna configurazione qui.
+version: '3'
+
+tasks:
+  _check:
+    internal: true
+    requires:
+      vars:
+        - name: ENV
+          enum: [dev, uat, prod]
+    preconditions:
+      - sh: test -f "Pulumi.{{.ENV}}.yaml"
+        msg: "Pulumi.{{.ENV}}.yaml non trovato"
+      - sh: pulumi stack ls --json | jq -e --arg s "{{.ENV}}" 'any(.[]; .name == $s)' >/dev/null
+        msg: "Stack '{{.ENV}}' non inizializzato: esegui 'task setup'"
+
+  preview:
+    desc: Anteprima delle modifiche (pulumi preview)
+    deps: [_check]
+    cmds:
+      - pulumi preview --stack {{.ENV}} --diff
+
+  up:
+    desc: Crea/aggiorna l'ambiente (pulumi up). YES=true per saltare la conferma
+    deps: [_check]
+    cmds:
+      - pulumi up --stack {{.ENV}}{{if eq .YES "true"}} --yes{{end}}
+      - task: kubeconfig
+
+  refresh:
+    desc: Riallinea lo stato Pulumi (pulumi refresh)
+    deps: [_check]
+    cmds:
+      - pulumi refresh --stack {{.ENV}}{{if eq .YES "true"}} --yes{{end}}
+
+  down:
+    desc: Distrugge l'ambiente (pulumi destroy). Elimina SOLO le VM dello stack
+    deps: [_check]
+    cmds:
+      - pulumi destroy --stack {{.ENV}}{{if eq .YES "true"}} --yes{{end}}
+      - rm -f ".kube/{{.ENV}}.yaml"
+
+  outputs:
+    desc: Output dello stack
+    deps: [_check]
+    cmds:
+      - pulumi stack output --stack {{.ENV}}
+
+  kubeconfig:
+    desc: Scrive il kubeconfig dello stack in .kube/<env>.yaml (non versionato)
+    deps: [_check]
+    cmds:
+      - mkdir -p .kube && chmod 700 .kube
+      - install -m 600 /dev/null ".kube/{{.ENV}}.yaml"
+      - pulumi stack output kubeconfig --show-secrets --stack {{.ENV}} > ".kube/{{.ENV}}.yaml"
+      - echo "export KUBECONFIG=$PWD/.kube/{{.ENV}}.yaml"

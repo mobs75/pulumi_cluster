@@ -1,0 +1,42 @@
+{
+  // Dev Container del progetto. NON duplica la toolchain: installa solo Nix
+  // e usa lo stesso flake.nix/flake.lock dello sviluppo sull'host.
+  "name": "pulumi_cluster",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/nix:1": {
+      "multiUser": true,
+      "extraNixConfig": "experimental-features = nix-command flakes"
+    }
+  },
+  // Store Nix persistente tra rebuild del container.
+  "mounts": [
+    "source=pulumi-cluster-nix,target=/nix,type=volume",
+    // Stato Pulumi locale condiviso con l'host (stesso backend di 'pulumi login --local').
+    "source=${localEnv:HOME}/.pulumi,target=/home/vscode/.pulumi,type=bind"
+  ],
+  "initializeCommand": "mkdir -p \"$HOME/.pulumi\"",
+  "remoteEnv": {
+    // La passphrase dei secret Pulumi arriva dall'ambiente dell'host, mai dal repo.
+    "PULUMI_CONFIG_PASSPHRASE": "${localEnv:PULUMI_CONFIG_PASSPHRASE}"
+  },
+  // Prepara (e mette in cache) la devShell del flake.
+  "postCreateCommand": "nix develop --command task --version",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        // Ogni terminale si apre dentro 'nix develop'.
+        "terminal.integrated.profiles.linux": {
+          "nix develop": { "path": "nix", "args": ["develop"] }
+        },
+        "terminal.integrated.defaultProfile.linux": "nix develop"
+      },
+      "extensions": [
+        "ms-python.python",
+        "redhat.vscode-yaml",
+        "task.vscode-task",
+        "jnoortheen.nix-ide"
+      ]
+    }
+  }
+}

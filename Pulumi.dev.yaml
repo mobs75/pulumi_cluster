@@ -1,1 +1,34 @@
 encryptionsalt: v1:lGpkwnhihiw=:v1:yzSsAaDT1eKdkXfx:fix0dfpbe4JP9cKX7Q5wqyK0KBcH1g==
+config:
+  # --- VM provider / bootstrap OS (cloud-init) --------------------------------
+  cluster:vmProvider: multipass
+  cluster:namePrefix: dev            # VM: dev-master, dev-node1..N
+  cluster:image: "24.04"
+  cluster:nodes:
+    controlPlane:
+      cpus: 4
+      memory: 12G
+      disk: 50G
+    workers:
+      count: 3                    # OpenServerless: almeno 3 worker da 4GB
+      cpus: 2
+      memory: 12G
+      disk: 50G
+  # Chiavi SSH PUBBLICHE (opzionale): pulumi config set --path 'cluster:sshAuthorizedKeys[0]' "ssh-ed25519 AAAA..." -s dev
+  # Proxy con credenziali SEMPRE come secret: pulumi config set --secret cluster:httpProxy http://user:pass@proxy:3128 -s dev
+  # Altri parametri opzionali: cluster:dnsServers, cluster:caCerts, cluster:packages, cluster:timezone, cluster:noProxy
+  # --- Kubernetes ---------------------------------------------------------------
+  k8s:distribution: microk8s
+  # Allineato a OpenServerless (kindest/node:v1.33.x). Mai "latest".
+  k8s:channel: 1.33/stable
+  k8s:joinAsWorker: true
+  k8s:registryMirror: false
+  # Addon richiesti da OpenServerless ("ops cloud mk8s create") + metallb per i
+  # Service LoadBalancer. "metallb:auto" = pool .240-.250 della subnet della VM;
+  # in alternativa un range esplicito, es. "metallb:10.10.10.240-10.10.10.250".
+  k8s:addons:
+    - dns
+    - hostpath-storage
+    - ingress
+    - cert-manager
+    - metallb:auto

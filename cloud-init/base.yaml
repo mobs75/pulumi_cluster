@@ -1,0 +1,41 @@
+# Template cloud-init comune a tutti i nodi (Ubuntu 24.04).
+#
+# Bootstrap del SOLO sistema operativo: piccolo, dichiarativo, idempotente.
+# hostname, chiavi SSH, DNS, proxy e CA vengono aggiunti per nodo/ambiente da
+# infra/cloudinit.py a partire dalla configurazione dello stack Pulumi.
+# Nessun secret in questo file.
+package_update: true
+package_upgrade: false
+
+packages:
+  - snapd
+  - curl
+  - ca-certificates
+  - jq
+  - nfs-common
+  - open-iscsi
+
+write_files:
+  # Moduli kernel richiesti da containerd / CNI.
+  - path: /etc/modules-load.d/90-kubernetes.conf
+    permissions: "0644"
+    content: |
+      overlay
+      br_netfilter
+  # Prerequisiti di rete per Kubernetes + limiti inotify
+  # (OpenServerless/OpenWhisk crea molti container).
+  - path: /etc/sysctl.d/90-kubernetes.conf
+    permissions: "0644"
+    content: |
+      net.ipv4.ip_forward = 1
+      net.bridge.bridge-nf-call-iptables = 1
+      net.bridge.bridge-nf-call-ip6tables = 1
+      fs.inotify.max_user_instances = 8192
+      fs.inotify.max_user_watches = 524288
+      vm.max_map_count = 262144
+
+runcmd:
+  - [systemctl, restart, systemd-modules-load.service]
+  - [sysctl, --system]
+
+final_message: "cloud-init completato dopo $UPTIME secondi"
